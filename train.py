@@ -3,11 +3,12 @@ from __future__ import division
 import os
 import random
 import numpy as np
-import argparse
 from copy import deepcopy
 
 # ----------------- Torch Components -----------------
 import torch
+
+from utils.misc import compute_flops
 
 # ----------------- Config Components -----------------
 from config import build_dataset_config, build_model_config, build_trans_config
@@ -31,10 +32,10 @@ default_config = {
                     "vis_aux_loss": False,   # 是否可视化辅助损失
                     "fp16": False,   
                     "batch_size": 8,    
-                    "max_epoch": 1,
-                    "wp_epoch": 0,
-                    "eval_epoch": 1,
-                    "no_aug_epoch": 0,
+                    "max_epoch": 150,
+                    "wp_epoch": 1,
+                    "eval_epoch": 10,
+                    "no_aug_epoch": 20,
                     "model": "yolov2",
                     "conf_thresh": 0.005,
                     "nms_thresh": 0.6,
@@ -42,7 +43,7 @@ default_config = {
                     "pretrained": None,
                     "resume": None,
                     "nms_class_agnostic": False,
-                    "root": "D:\VS_code\TargetRec\LastHomework\data",
+                    "root": "/home/stu5/Arapat/data",
                     "load_cache": False,  # 是否加载缓存
                     "num_workers": 4,
                     "multi_scale": False,
@@ -52,7 +53,8 @@ default_config = {
                     "mixup": None,
                     "grad_accumulate": 1,
                     "debug": False,
-                    "seed": 42
+                    "seed": 4,
+                    "eval_first":False
                 }
 
 
@@ -86,14 +88,23 @@ def train():
     ## Build model
     model, criterion = build_model(default_config, model_cfg, device, data_cfg['num_classes'], True) # 构建模型
     model = model.to(device).train()   # 将模型放到设备上并设置为训练模式
-
+    model_without_ddp = model
+    model_copy = deepcopy(model_without_ddp)
+    model_copy.trainable = False
+    model_copy.eval()
+    compute_flops(model=model_copy,
+                    img_size=default_config['img_size'],
+                    device=device)
+    del model_copy
     # ---------------------------- Build Trainer ----------------------------
     trainer = build_trainer(default_config, data_cfg, model_cfg, trans_cfg, device, model, criterion)
     # 构建训练器
     # --------------------------------- Train: Start ---------------------------------
     # to check whether the evaluator can work
-    model_eval = model
-    trainer.eval(model_eval)
+    if default_config['eval_first']:
+        # to check whether the evaluator can work
+        model_eval = model_without_ddp
+        trainer.eval(model_eval)
 
     ## Satrt Training
     trainer.train(model)

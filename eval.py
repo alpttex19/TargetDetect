@@ -1,4 +1,3 @@
-import argparse
 import os
 
 from copy import deepcopy
@@ -26,8 +25,8 @@ default_config ={
                     "no_decode": False,
                     "fuse_conv_bn": False,
                     "nms_class_agnostic": False,
-                    "root": "/home/guowx/data/AvatarCap/TargetRec/Model/MyVersion/data",
-                    "dataset": "coco",
+                    "root": "/home/stu5/Arapat/data",
+                    "dataset": "voc",
                     "mosaic": None,
                     "mixup": None,
                     "load_cache": False,

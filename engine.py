@@ -47,7 +47,7 @@ class Yolov2Trainer(object):
         self.optimizer_dict = {'optimizer': 'sgd', 'momentum': 0.937, 'weight_decay': 5e-4, 'lr0': 0.01}
         # 学习率调度器：线性， 初始学习率：0.01
         self.lr_schedule_dict = {'scheduler': 'linear', 'lrf': 0.01}
-        # 
+        # 热身学习率：0.1， 热身动量：0.8
         self.warmup_dict = {'warmup_momentum': 0.8, 'warmup_bias_lr': 0.1}        
 
         # ---------------------------- Build Dataset & Model & Trans. Config ----------------------------
@@ -136,8 +136,6 @@ class Yolov2Trainer(object):
         """
             选择评估模型： 使用原始模型。
 
-            主进程判断： 通过distributed_utils.is_main_process()判断当前进程是否为主进程，主要是为了避免多进程并行运行时多次执行相同的操作。
-
             检查评估器： 检查是否存在评估器（evaluator）。如果没有评估器，输出提示信息并保存当前模型的状态，然后继续训练。
 
             模型评估： 将选择的评估模型设置为评估模式，禁止梯度计算，然后使用评估器对模型进行评估。评估结果包括计算的平均精度（mAP）等指标。
@@ -148,48 +146,47 @@ class Yolov2Trainer(object):
         # chech model
         model_eval = model 
 
-        if distributed_utils.is_main_process():  # 
-            # check evaluator
-            if self.evaluator is None:
-                print('No evaluator ... save model and go on training.')
-                print('Saving state, epoch: {}'.format(self.epoch))
-                weight_name = 'no_eval.pth'
+        # check evaluator
+        if self.evaluator is None:
+            print('No evaluator ... save model and go on training.')
+            print('Saving state, epoch: {}'.format(self.epoch))
+            weight_name = '{}_no_eval.pth'.format(self.default_config['model'])
+            checkpoint_path = os.path.join(self.path_to_save, weight_name)
+            torch.save({'model': model_eval.state_dict(),
+                        'mAP': -1.,
+                        'optimizer': self.optimizer.state_dict(),
+                        'epoch': self.epoch,
+                        'default_config': self.default_config}, 
+                        checkpoint_path)               
+        else:
+            print('eval ...')
+            # set eval mode
+            model_eval.trainable = False
+            model_eval.eval()
+
+            # evaluate
+            with torch.no_grad():
+                self.evaluator.evaluate(model_eval)
+
+            # save model
+            cur_map = self.evaluator.map
+            if cur_map > self.best_map:
+                # update best-map
+                self.best_map = cur_map
+                # save model
+                print('Saving state, epoch:', self.epoch)
+                weight_name = 'best.pth'
                 checkpoint_path = os.path.join(self.path_to_save, weight_name)
                 torch.save({'model': model_eval.state_dict(),
-                            'mAP': -1.,
+                            'mAP': round(self.best_map*100, 1),
                             'optimizer': self.optimizer.state_dict(),
                             'epoch': self.epoch,
                             'default_config': self.default_config}, 
-                            checkpoint_path)               
-            else:
-                print('eval ...')
-                # set eval mode
-                model_eval.trainable = False
-                model_eval.eval()
+                            checkpoint_path)                      
 
-                # evaluate
-                with torch.no_grad():
-                    self.evaluator.evaluate(model_eval)
-
-                # save model
-                cur_map = self.evaluator.map
-                if cur_map > self.best_map:
-                    # update best-map
-                    self.best_map = cur_map
-                    # save model
-                    print('Saving state, epoch:', self.epoch)
-                    weight_name = 'best.pth'
-                    checkpoint_path = os.path.join(self.path_to_save, weight_name)
-                    torch.save({'model': model_eval.state_dict(),
-                                'mAP': round(self.best_map*100, 1),
-                                'optimizer': self.optimizer.state_dict(),
-                                'epoch': self.epoch,
-                                'default_config': self.default_config}, 
-                                checkpoint_path)                      
-
-                # set train mode.
-                model_eval.trainable = True
-                model_eval.train()
+            # set train mode.
+            model_eval.trainable = True
+            model_eval.train()
 
     def train_one_epoch(self, model):
         # basic parameters
@@ -236,7 +233,7 @@ class Yolov2Trainer(object):
                 losses *= images.shape[0]  # loss * bs
 
                 # reduce            
-                loss_dict_reduced = distributed_utils.reduce_dict(loss_dict)
+                loss_dict_reduced = loss_dict
             # 反向传播
             self.scaler.scale(losses).backward()
 
@@ -253,10 +250,11 @@ class Yolov2Trainer(object):
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
                 self.optimizer.zero_grad()
+                self.last_opt_step = ni
 
             # display
             # 打印训练信息
-            if distributed_utils.is_main_process() and iter_i % 10 == 0:
+            if iter_i % 10 == 0:
                 t1 = time.time()
                 cur_lr = [param_group['lr']  for param_group in self.optimizer.param_groups]
                 # basic infor

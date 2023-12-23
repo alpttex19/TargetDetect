@@ -20,21 +20,21 @@ from models import build_model
 default_config =  {
                             "img_size": 640,
                             "show": False,
-                            "save": False,
-                            "cuda": False,
+                            "save": True,
+                            "cuda": True,
                             "save_folder": "det_results/",
                             "visual_threshold": 0.3,
                             "window_scale": 1.0,
                             "resave": False,
                             "model": "yolov1",
-                            "weight": None,
+                            "weight": "/home/stu5/Arapat/Model/weights/best.pth",
                             "conf_thresh": 0.25,
                             "nms_thresh": 0.5,
                             "topk": 100,
                             "no_decode": False,
                             "fuse_conv_bn": False,
                             "nms_class_agnostic": False,
-                            "root": "D:\VS_code\TargetRec\LastHomework\data",
+                            "root": "/home/stu5/Arapat/data",
                             "dataset": "voc",
                             "min_box_size": 8.0,
                             "mosaic": None,
@@ -93,7 +93,7 @@ def test(default_config,
          class_names=None, 
          class_indexs=None):
     num_images = len(dataset)
-    save_path = os.path.join('det_results/')
+    save_path = os.path.join('det_results/voc')
     os.makedirs(save_path, exist_ok=True)
 
     for index in range(num_images):

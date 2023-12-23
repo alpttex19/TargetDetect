@@ -55,7 +55,7 @@ class Yolov2Matcher(object):
     def __call__(self, fmp_size, stride, targets):
         """
             img_size: (Int) input image size
-            stride: (Int) -> stride of YOLOv1 output.
+            stride: (Int) -> stride of YOLOv2 output.
             targets: (Dict) dict{'boxes': [...], 
                                  'labels': [...], 
                                  'orig_size': ...}

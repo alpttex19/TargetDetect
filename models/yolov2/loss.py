@@ -66,8 +66,6 @@ class Criterion(object):
         pos_masks = (gt_objectness > 0)
         num_fgs = pos_masks.sum()
 
-        if is_dist_avail_and_initialized():
-            torch.distributed.all_reduce(num_fgs)
         num_fgs = (num_fgs / get_world_size()).clamp(1.0)
 
         # box loss

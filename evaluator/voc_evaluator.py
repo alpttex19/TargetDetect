@@ -153,8 +153,8 @@ class VOCAPIEvaluator():
             with open(filename, 'wt') as f:
                 for im_ind, index in enumerate(self.dataset.ids):
                     dets = all_boxes[cls_ind][im_ind]
-                    print(dets)
-                    if len(dets) == 0:
+                    # print(dets)
+                    if dets == []:
                         continue
                     # the VOCdevkit expects 1-based indices
                     for k in range(dets.shape[0]):
@@ -335,9 +335,8 @@ class VOCAPIEvaluator():
             # avoid divide by zero in case the first detection matches a difficult
             # 避免第一个检测匹配到一个困难的样本，导致分母为0
             if npos == 0:
-                pass
-            else :
-                rec = tp / float(npos)
+                npos = 1
+            rec = tp / float(npos)
             # ground truth # 真实值
             prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
             ap = self.voc_ap(rec, prec, use_07_metric)
